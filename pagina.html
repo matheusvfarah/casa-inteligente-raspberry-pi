@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pi">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#101418">
+<title>Pi</title>
+<style>
+  :root {
+    --fundo: #101418; --painel: #1a2027; --borda: #2a323c; --texto: #e8edf2; --fraco: #8c98a6;
+    --destaque: #c51a4a; --meu: #c51a4a; --aviso: #3a2f0f; --erro: #e5737b; --ok: #4cc38a;
+    --serie: #3987e5; --grade: #2a323c;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --fundo: #f4f5f7; --painel: #ffffff; --borda: #d9dde3; --texto: #171b21; --fraco: #667180;
+      --aviso: #fff3cf; --erro: #c0303b; --ok: #1f8f5c;
+      --serie: #2a78d6; --grade: #e3e6ea;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 16px/1.4 system-ui, -apple-system, sans-serif; background: var(--fundo); color: var(--texto);
+    display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+    padding-top: calc(12px + env(safe-area-inset-top)); background: var(--painel); border-bottom: 1px solid var(--borda);
+  }
+  header h1 { font-size: 1.05rem; margin: 0; flex: 1; }
+  #ponto { width: 10px; height: 10px; border-radius: 50%; background: var(--fraco); }
+  #ponto.on { background: var(--ok); }
+  #ponto.off { background: var(--erro); }
+  button { font: inherit; color: inherit; border: 0; border-radius: 10px; padding: 10px 14px; background: var(--destaque); color: #fff; }
+  button.leve { background: transparent; color: var(--fraco); border: 1px solid var(--borda); padding: 6px 10px; font-size: .85rem; }
+  button:disabled { opacity: .45; }
+  main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .tela { flex: 1; min-height: 0; display: none; flex-direction: column; }
+  .tela.ativa { display: flex; }
+
+  #conversa { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; -webkit-overflow-scrolling: touch; }
+  .bolha { max-width: 85%; padding: 9px 13px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .usuario { align-self: flex-end; background: var(--meu); color: #fff; border-bottom-right-radius: 4px; }
+  .agente { align-self: flex-start; background: var(--painel); border: 1px solid var(--borda); border-bottom-left-radius: 4px; }
+  .aviso { align-self: stretch; max-width: none; background: var(--aviso); border-radius: 12px; }
+  .aviso::before { content: "Aviso do Pi"; display: block; font-size: .75rem; color: var(--fraco); }
+  .erro { align-self: stretch; max-width: none; color: var(--erro); border: 1px solid var(--erro); border-radius: 12px; }
+  .nota { align-self: center; font-size: .8rem; color: var(--fraco); }
+  .cartao { align-self: stretch; background: var(--painel); border: 1px solid var(--borda); border-radius: 12px; padding: 12px; }
+  .cartao .acoes { display: flex; gap: 8px; margin-top: 10px; }
+  .cartao .acoes button { flex: 1; }
+  .cartao .negar { background: transparent; color: var(--texto); border: 1px solid var(--borda); }
+  #vazio { margin: auto; text-align: center; color: var(--fraco); padding: 0 24px; }
+
+  #atalhos { display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 8px; scrollbar-width: none; }
+  #atalhos::-webkit-scrollbar { display: none; }
+  #atalhos button { white-space: nowrap; background: var(--painel); color: var(--texto); border: 1px solid var(--borda); border-radius: 999px; padding: 7px 12px; font-size: .9rem; }
+  #escrever { display: flex; gap: 8px; padding: 8px 16px 12px; }
+  #texto { flex: 1; min-width: 0; font: inherit; color: inherit; background: var(--painel); border: 1px solid var(--borda); border-radius: 999px; padding: 10px 16px; }
+
+  #arquivos { padding: 16px; overflow-y: auto; gap: 18px; }
+  #arquivos h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fraco); margin: 0 0 8px; }
+  #arquivos input[type=text] { width: 100%; font: inherit; color: inherit; background: var(--painel); border: 1px solid var(--borda); border-radius: 10px; padding: 10px 12px; }
+  #arquivos input[type=file] { width: 100%; margin-bottom: 10px; color: var(--fraco); }
+  #lista { list-style: none; margin: 0; padding: 0; }
+  #lista li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--borda); overflow-wrap: anywhere; }
+  #lista small, #resultado { color: var(--fraco); white-space: nowrap; }
+
+  #casa { padding: 16px; overflow-y: auto; gap: 14px; -webkit-overflow-scrolling: touch; }
+  #casa h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fraco); margin: 0 0 8px; }
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .painel { background: var(--painel); border: 1px solid var(--borda); border-radius: 14px; padding: 12px 14px; }
+  .painel .rotulo { font-size: .8rem; color: var(--fraco); }
+  .painel .valor { font-size: 1.7rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .painel .sub { font-size: .8rem; color: var(--fraco); }
+  .chave { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left;
+           background: var(--painel); color: var(--texto); border: 1px solid var(--borda); border-radius: 14px; padding: 12px 14px; }
+  .chave .trilho { flex: none; width: 46px; height: 28px; border-radius: 999px; background: var(--borda); position: relative; transition: background .15s; }
+  .chave .trilho::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .chave[aria-checked=true] .trilho { background: var(--destaque); }
+  .chave[aria-checked=true] .trilho::after { left: 21px; }
+  #simulado { background: var(--aviso); border-radius: 10px; padding: 8px 12px; font-size: .85rem; }
+  #periodo { display: flex; gap: 6px; margin-bottom: 8px; }
+  #periodo button { background: transparent; color: var(--fraco); border: 1px solid var(--borda); border-radius: 999px; padding: 4px 12px; font-size: .85rem; }
+  #periodo button.ativa { color: var(--texto); border-color: var(--texto); }
+  .grafico { position: relative; margin-bottom: 10px; }
+  .grafico h3 { font-size: .9rem; font-weight: 600; margin: 0 0 2px; }
+  .grafico svg { display: block; width: 100%; height: 130px; touch-action: pan-y; }
+  .grafico text { fill: var(--fraco); font-size: 11px; }
+  .grafico .linha { fill: none; stroke: var(--serie); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .grafico .eixo { stroke: var(--grade); stroke-width: 1; }
+  .grafico .mira { stroke: var(--fraco); stroke-width: 1; }
+  .grafico .ponto { fill: var(--serie); stroke: var(--painel); stroke-width: 2; }
+  .dica { position: absolute; top: 0; right: 0; font-size: .8rem; color: var(--texto); font-variant-numeric: tabular-nums; }
+  .vazio { color: var(--fraco); font-size: .9rem; padding: 8px 0; }
+  .lista { list-style: none; margin: 0; padding: 0; }
+  .lista li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--borda); font-size: .92rem; }
+  .lista li:last-child { border-bottom: 0; }
+  .lista small { color: var(--fraco); white-space: nowrap; }
+  details summary { color: var(--fraco); font-size: .85rem; padding: 4px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 5px 0; border-bottom: 1px solid var(--borda); font-weight: 400; }
+  th { color: var(--fraco); }
+  #faixa { position: fixed; left: 12px; right: 12px; top: calc(8px + env(safe-area-inset-top)); z-index: 5; background: var(--aviso);
+           border: 1px solid var(--borda); border-radius: 12px; padding: 12px 14px; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+
+  nav { display: flex; background: var(--painel); border-top: 1px solid var(--borda); padding-bottom: env(safe-area-inset-bottom); }
+  nav button { flex: 1; background: transparent; color: var(--fraco); border-radius: 0; padding: 12px; }
+  nav button.ativa { color: var(--destaque); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <span id="ponto"></span>
+  <h1>Raspberry Pi</h1>
+  <button class="leve" id="nova">Nova conversa</button>
+</header>
+
+<div id="faixa" hidden></div>
+
+<main>
+  <section class="tela ativa" id="casa">
+    <div id="simulado" hidden>Modo simulado: sem sensores de verdade, os valores são inventados.
+      <button class="leve" id="simular">Simular movimento</button></div>
+
+    <div class="grade">
+      <div class="painel"><div class="rotulo">Temperatura</div><div class="valor" id="temperatura">–</div><div class="sub" id="lido">sem leitura</div></div>
+      <div class="painel"><div class="rotulo">Umidade</div><div class="valor" id="umidade">–</div><div class="sub" id="movimento">sem movimento</div></div>
+    </div>
+
+    <button class="chave" id="luz" role="switch" aria-checked="false"><span>Luz</span><span class="trilho"></span></button>
+    <button class="chave" id="alarme" role="switch" aria-checked="false"><span>Alarme de presença</span><span class="trilho"></span></button>
+
+    <div class="painel">
+      <h2>Histórico</h2>
+      <div id="periodo"><button data-horas="1">1 h</button><button data-horas="6">6 h</button><button data-horas="24" class="ativa">24 h</button></div>
+      <div class="grafico" id="g-temperatura"></div>
+      <div class="grafico" id="g-umidade"></div>
+      <details><summary>Ver em tabela</summary><div id="tabela"></div></details>
+    </div>
+
+    <div class="painel">
+      <h2>Regras</h2>
+      <ul class="lista" id="regras"></ul>
+    </div>
+
+    <div class="painel">
+      <h2>Últimos eventos</h2>
+      <ul class="lista" id="eventos"></ul>
+    </div>
+  </section>
+
+  <section class="tela" id="chat">
+    <div id="conversa">
+      <div id="vazio">Peça algo ao agente em português ou toque em um dos atalhos abaixo.</div>
+    </div>
+    <div id="atalhos">
+      <button>Como está a casa?</button>
+      <button>Acenda a luz</button>
+      <button>Me avise se passar de 30 °C</button>
+      <button>Quem está na rede?</button>
+      <button>Como está o Pi?</button>
+      <button>Que serviços há na rede?</button>
+      <button>Que arquivos o Pi recebeu?</button>
+    </div>
+    <form id="escrever">
+      <input id="texto" autocomplete="off" enterkeyhint="send" maxlength="4000" placeholder="Mensagem para o agente">
+      <button id="mandar">Enviar</button>
+    </form>
+  </section>
+
+  <section class="tela" id="arquivos">
+    <div>
+      <h2>Este celular</h2>
+      <input type="text" id="nome" maxlength="40" placeholder="Nome deste celular">
+    </div>
+    <div>
+      <h2>Enviar arquivo para o Pi</h2>
+      <input type="file" id="arquivo">
+      <button id="subir">Enviar arquivo</button>
+      <span id="resultado"></span>
+    </div>
+    <div>
+      <h2>Arquivos no Pi</h2>
+      <ul id="lista"></ul>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button data-tela="casa" class="ativa">Casa</button>
+  <button data-tela="chat">Conversa</button>
+  <button data-tela="arquivos">Arquivos</button>
+</nav>
+
+<script>
+const token = new URLSearchParams(location.search).get("t") || "";
+const $ = (id) => document.getElementById(id);
+const conversa = $("conversa");
+let desde = 0;
+let ocupado = false;
+let carregado = false;
+
+function api(caminho, extra = "") {
+  return `/api/${caminho}?t=${encodeURIComponent(token)}${extra}`;
+}
+
+async function postar(caminho, dados) {
+  const resposta = await fetch(api(caminho), { method: "POST", body: JSON.stringify(dados) });
+  const corpo = await resposta.json();
+  if (!resposta.ok) throw new Error(corpo.erro || resposta.status);
+}
+
+function acrescentar(classe, texto) {
+  $("vazio").hidden = true;
+  const item = document.createElement("div");
+  item.className = classe;
+  item.textContent = texto;
+  conversa.appendChild(item);
+  conversa.scrollTop = conversa.scrollHeight;
+  return item;
+}
+
+function definirOcupado(valor) {
+  ocupado = valor;
+  $("mandar").disabled = valor;
+  document.querySelectorAll("#atalhos button").forEach((b) => (b.disabled = valor));
+  const antigo = $("pensando");
+  if (antigo) antigo.remove();
+  if (valor) acrescentar("nota", "o agente está trabalhando…").id = "pensando";
+}
+
+const NOMES = {
+  escanear_rede: "escaneando a rede (pode levar um minuto)…",
+  descobrir_servicos: "procurando serviços na rede…",
+  status_do_pi: "lendo o estado do Pi…",
+  celulares_conectados: "vendo os celulares conectados…",
+  arquivos_recebidos: "listando os arquivos…",
+  enviar_aviso: "preparando um aviso…",
+  controlar_luz: "acionando a luz…",
+  armar_alarme: "ajustando o alarme…",
+  estado_da_casa: "lendo os sensores…",
+  historico_da_casa: "consultando o histórico…",
+  criar_regra: "preparando uma regra…",
+  listar_regras: "vendo as regras…",
+  apagar_regra: "apagando uma regra…",
+};
+
+function tratar(e) {
+  desde = e.id;
+  const pensando = $("pensando");
+  if (e.tipo === "limpar") {
+    conversa.querySelectorAll(":scope > :not(#vazio)").forEach((n) => n.remove());
+    $("vazio").hidden = false;
+  } else if (e.tipo === "usuario" || e.tipo === "agente" || e.tipo === "erro") {
+    acrescentar(e.tipo === "erro" ? "bolha erro" : "bolha " + e.tipo, e.texto);
+  } else if (e.tipo === "aviso") {
+    acrescentar("bolha aviso", e.texto);
+    if (navigator.vibrate) navigator.vibrate(200);
+    if (carregado && !$("chat").classList.contains("ativa")) mostrarFaixa(e.texto);
+  } else if (e.tipo === "ferramenta") {
+    acrescentar("nota", NOMES[e.texto] || e.texto);
+  } else if (e.tipo === "confirmar") {
+    const cartao = acrescentar("cartao", e.texto);
+    cartao.id = "confirmar-" + e.id;
+    const acoes = document.createElement("div");
+    acoes.className = "acoes";
+    for (const [rotulo, ok] of [["Negar", false], ["Permitir", true]]) {
+      const botao = document.createElement("button");
+      botao.textContent = rotulo;
+      if (!ok) botao.className = "negar";
+      botao.onclick = () => postar("confirmar", { id: e.id, ok }).catch(() => {});
+      acoes.appendChild(botao);
+    }
+    cartao.appendChild(acoes);
+    if (navigator.vibrate) navigator.vibrate(100);
+  } else if (e.tipo === "confirmado") {
+    const cartao = $("confirmar-" + e.ref);
+    if (cartao) {
+      cartao.querySelector(".acoes").remove();
+      const fim = document.createElement("div");
+      fim.className = "nota";
+      fim.textContent = e.ok ? "Permitido" : "Negado";
+      cartao.appendChild(fim);
+    }
+  } else if (e.tipo === "estado") {
+    definirOcupado(e.ocupado);
+    return;
+  }
+  // mantém o indicador "trabalhando" sempre no fim da conversa
+  if (pensando && pensando.isConnected) conversa.appendChild(pensando);
+  conversa.scrollTop = conversa.scrollHeight;
+}
+
+async function ouvir() {
+  const ponto = $("ponto");
+  for (;;) {
+    try {
+      const resposta = await fetch(api("eventos", `&desde=${desde}&nome=${encodeURIComponent($("nome").value)}`));
+      if (resposta.status === 403) {
+        ponto.className = "off";
+        acrescentar("bolha erro", "Este link não é mais válido. Abra o link novo mostrado no terminal do Pi.");
+        return;
+      }
+      if (!resposta.ok) throw new Error(resposta.status);
+      ponto.className = "on";
+      (await resposta.json()).forEach(tratar);
+      carregado = true;  // a partir daqui, avisos são novos e não histórico
+    } catch (erro) {
+      ponto.className = "off";
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+}
+
+async function pedir(texto) {
+  if (ocupado || !texto.trim()) return;
+  try {
+    await postar("chat", { texto });
+    $("texto").value = "";
+  } catch (erro) {
+    acrescentar("bolha erro", "Não consegui enviar: " + erro.message);
+  }
+}
+
+$("escrever").addEventListener("submit", (evento) => {
+  evento.preventDefault();
+  pedir($("texto").value);
+});
+document.querySelectorAll("#atalhos button").forEach((b) => b.addEventListener("click", () => pedir(b.textContent)));
+$("nova").addEventListener("click", () => {
+  postar("nova", {}).catch((erro) => acrescentar("bolha erro", erro.message));
+});
+
+document.querySelectorAll("nav button").forEach((botao) =>
+  botao.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("ativa", b === botao));
+    document.querySelectorAll(".tela").forEach((t) => t.classList.toggle("ativa", t.id === botao.dataset.tela));
+    if (botao.dataset.tela === "arquivos") listarArquivos();
+    if (botao.dataset.tela === "casa") { atualizarCasa(); carregarHistorico(); }
+  })
+);
+
+function tamanho(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";
+  return (bytes / 1024 / 1024).toFixed(1) + " MB";
+}
+
+async function listarArquivos() {
+  const lista = $("lista");
+  try {
+    const arquivos = await (await fetch(api("arquivos"))).json();
+    lista.textContent = "";
+    if (!arquivos.length) lista.innerHTML = "<li><small>Nenhum arquivo ainda.</small></li>";
+    for (const a of arquivos) {
+      const item = document.createElement("li");
+      const nome = document.createElement("span");
+      nome.textContent = a.nome;
+      const peso = document.createElement("small");
+      peso.textContent = tamanho(a.bytes);
+      item.append(nome, peso);
+      lista.appendChild(item);
+    }
+  } catch (erro) {
+    lista.innerHTML = "<li><small>Não consegui listar os arquivos.</small></li>";
+  }
+}
+
+$("subir").addEventListener("click", async () => {
+  const arquivo = $("arquivo").files[0];
+  const resultado = $("resultado");
+  if (!arquivo) { resultado.textContent = " Escolha um arquivo."; return; }
+  resultado.textContent = " Enviando…";
+  try {
+    const resposta = await fetch(api("arquivo", `&nome=${encodeURIComponent(arquivo.name)}`), { method: "POST", body: arquivo });
+    const dados = await resposta.json();
+    resultado.textContent = resposta.ok ? " Enviado." : " Erro: " + dados.erro;
+    if (resposta.ok) { $("arquivo").value = ""; listarArquivos(); }
+  } catch (erro) {
+    resultado.textContent = " Falha no envio.";
+  }
+});
+
+// ---------- Aba Casa ----------
+
+function mostrarFaixa(texto) {
+  const faixa = $("faixa");
+  faixa.textContent = texto;
+  faixa.hidden = false;
+  clearTimeout(mostrarFaixa.relogio);
+  mostrarFaixa.relogio = setTimeout(() => (faixa.hidden = true), 6000);
+}
+$("faixa").addEventListener("click", () => ($("faixa").hidden = true));
+
+function haQuanto(momento) {
+  if (!momento) return null;
+  const segundos = Math.max(0, Math.round(Date.now() / 1000 - momento));
+  if (segundos < 60) return "agora há pouco";
+  if (segundos < 3600) return `há ${Math.round(segundos / 60)} min`;
+  if (segundos < 86400) return `há ${Math.round(segundos / 3600)} h`;
+  return `há ${Math.round(segundos / 86400)} d`;
+}
+
+function hora(momento) {
+  return new Date(momento * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function preencherLista(id, itens, vazio, montar) {
+  const lista = $(id);
+  lista.textContent = "";
+  if (!itens.length) {
+    const item = document.createElement("li");
+    item.className = "vazio";
+    item.textContent = vazio;
+    lista.appendChild(item);
+  }
+  itens.forEach((dado) => lista.appendChild(montar(dado)));
+}
+
+const TIPOS = { luz: "Luz", alarme: "Alarme", movimento: "Movimento", regra: "Regra" };
+
+async function atualizarCasa() {
+  if (!$("casa").classList.contains("ativa")) return;
+  let c;
+  try {
+    const resposta = await fetch(api("casa"));
+    if (!resposta.ok) return;
+    c = await resposta.json();
+  } catch (erro) { return; }
+
+  $("simulado").hidden = !c.simulado;
+  $("temperatura").textContent = c.temperatura === null ? "–" : c.temperatura.toFixed(1) + " °C";
+  $("umidade").textContent = c.umidade === null ? "–" : c.umidade.toFixed(0) + " %";
+  $("lido").textContent = c.momento ? "lido " + haQuanto(c.momento) : "sem leitura do sensor";
+  $("movimento").textContent = c.ultimo_movimento ? "movimento " + haQuanto(c.ultimo_movimento) : "sem movimento";
+  $("luz").setAttribute("aria-checked", c.luz);
+  $("alarme").setAttribute("aria-checked", c.alarme);
+
+  preencherLista("regras", c.regras, "Nenhuma regra. Peça uma na aba Conversa.", (regra) => {
+    const item = document.createElement("li");
+    const texto = document.createElement("span");
+    texto.textContent = regra.descricao;
+    const apagar = document.createElement("button");
+    apagar.className = "leve";
+    apagar.textContent = "Apagar";
+    apagar.onclick = () => postar("regra/apagar", { id: regra.id }).then(atualizarCasa).catch(() => {});
+    item.append(texto, apagar);
+    return item;
+  });
+  preencherLista("eventos", c.eventos, "Nada aconteceu ainda.", (evento) => {
+    const item = document.createElement("li");
+    const texto = document.createElement("span");
+    texto.textContent = `${TIPOS[evento.tipo] || evento.tipo}: ${evento.detalhe}`;
+    const quando = document.createElement("small");
+    quando.textContent = hora(evento.momento);
+    item.append(texto, quando);
+    return item;
+  });
+}
+
+function alternar(id, caminho, campo) {
+  $(id).addEventListener("click", async () => {
+    const novo = $(id).getAttribute("aria-checked") !== "true";
+    $(id).setAttribute("aria-checked", novo);  // responde na hora; o servidor confirma em seguida
+    try { await postar(caminho, { [campo]: novo }); } catch (erro) {}
+    atualizarCasa();
+  });
+}
+alternar("luz", "luz", "ligada");
+alternar("alarme", "alarme", "armado");
+$("simular").addEventListener("click", () => postar("simular-movimento", {}).then(atualizarCasa).catch(() => {}));
+
+// Gráfico de linha em SVG, sem bibliotecas (o app precisa funcionar sem internet).
+const SVG = "http://www.w3.org/2000/svg";
+function no(nome, atributos, pai) {
+  const elemento = document.createElementNS(SVG, nome);
+  for (const chave in atributos) elemento.setAttribute(chave, atributos[chave]);
+  if (pai) pai.appendChild(elemento);
+  return elemento;
+}
+
+function desenhar(id, titulo, unidade, pontos, campo, horas) {
+  const caixa = $(id);
+  caixa.textContent = "";
+  const cabecalho = document.createElement("h3");
+  cabecalho.textContent = `${titulo} (${unidade})`;
+  caixa.appendChild(cabecalho);
+  const dados = pontos.filter((p) => p[campo] !== null);
+  if (dados.length < 2) {
+    const aviso = document.createElement("div");
+    aviso.className = "vazio";
+    aviso.textContent = "Ainda não há leituras suficientes neste período.";
+    caixa.appendChild(aviso);
+    return;
+  }
+  const dica = document.createElement("div");
+  dica.className = "dica";
+  caixa.appendChild(dica);
+
+  const L = caixa.clientWidth || 320, A = 130, esq = 34, dir = 8, topo = 8, base = 22;
+  const svg = no("svg", { viewBox: `0 0 ${L} ${A}`, role: "img", "aria-label": `${titulo} nas últimas ${horas} horas` });
+  const fim = Date.now() / 1000, inicio = fim - horas * 3600;
+  let minimo = Math.min(...dados.map((p) => p[campo])), maximo = Math.max(...dados.map((p) => p[campo]));
+  const folga = Math.max((maximo - minimo) * 0.15, 0.5);
+  minimo = Math.floor(minimo - folga); maximo = Math.ceil(maximo + folga);
+  const x = (t) => esq + ((t - inicio) / (fim - inicio)) * (L - esq - dir);
+  const y = (v) => topo + (1 - (v - minimo) / (maximo - minimo)) * (A - topo - base);
+
+  for (let i = 0; i <= 2; i++) {  // três linhas de grade: mínimo, meio, máximo
+    const valor = minimo + ((maximo - minimo) * i) / 2;
+    no("line", { class: "eixo", x1: esq, x2: L - dir, y1: y(valor), y2: y(valor) }, svg);
+    no("text", { x: esq - 6, y: y(valor) + 4, "text-anchor": "end" }, svg).textContent = valor.toFixed(valor % 1 ? 1 : 0);
+  }
+  for (let i = 0; i <= 3; i++) {  // rótulos de hora no eixo horizontal
+    const t = inicio + ((fim - inicio) * i) / 3;
+    no("text", { x: x(t), y: A - 6, "text-anchor": i === 0 ? "start" : i === 3 ? "end" : "middle" }, svg).textContent = hora(t);
+  }
+  no("path", { class: "linha", d: dados.map((p, i) => `${i ? "L" : "M"}${x(p.momento).toFixed(1)},${y(p[campo]).toFixed(1)}` ).join("") }, svg);
+
+  const mira = no("line", { class: "mira", y1: topo, y2: A - base, visibility: "hidden" }, svg);
+  const ponto = no("circle", { class: "ponto", r: 5, visibility: "hidden" }, svg);
+  const mostrar = (evento) => {
+    const caixaSvg = svg.getBoundingClientRect();
+    const alvo = inicio + ((evento.clientX - caixaSvg.left) / caixaSvg.width * L - esq) / (L - esq - dir) * (fim - inicio);
+    const perto = dados.reduce((a, b) => (Math.abs(b.momento - alvo) < Math.abs(a.momento - alvo) ? b : a));
+    mira.setAttribute("x1", x(perto.momento)); mira.setAttribute("x2", x(perto.momento));
+    ponto.setAttribute("cx", x(perto.momento)); ponto.setAttribute("cy", y(perto[campo]));
+    mira.setAttribute("visibility", "visible"); ponto.setAttribute("visibility", "visible");
+    dica.textContent = `${hora(perto.momento)} · ${perto[campo].toFixed(1)} ${unidade}`;
+  };
+  const esconder = () => {
+    mira.setAttribute("visibility", "hidden"); ponto.setAttribute("visibility", "hidden");
+    dica.textContent = "";
+  };
+  svg.addEventListener("pointermove", mostrar);
+  svg.addEventListener("pointerdown", mostrar);
+  svg.addEventListener("pointerleave", esconder);
+  caixa.appendChild(svg);
+}
+
+let horasGrafico = 24;
+async function carregarHistorico() {
+  if (!$("casa").classList.contains("ativa")) return;
+  let pontos;
+  try { pontos = await (await fetch(api("historico", `&horas=${horasGrafico}`))).json(); } catch (erro) { return; }
+  if (!Array.isArray(pontos)) return;
+  desenhar("g-temperatura", "Temperatura", "°C", pontos, "temperatura", horasGrafico);
+  desenhar("g-umidade", "Umidade", "%", pontos, "umidade", horasGrafico);
+
+  const tabela = document.createElement("table");
+  tabela.innerHTML = "<tr><th>Hora</th><th>Temperatura</th><th>Umidade</th></tr>";
+  const passo = Math.max(1, Math.ceil(pontos.length / 12));
+  for (let i = pontos.length - 1; i >= 0; i -= passo) {
+    const linha = tabela.insertRow();
+    linha.insertCell().textContent = hora(pontos[i].momento);
+    linha.insertCell().textContent = pontos[i].temperatura + " °C";
+    linha.insertCell().textContent = pontos[i].umidade + " %";
+  }
+  $("tabela").replaceChildren(tabela);
+}
+document.querySelectorAll("#periodo button").forEach((botao) =>
+  botao.addEventListener("click", () => {
+    horasGrafico = Number(botao.dataset.horas);
+    document.querySelectorAll("#periodo button").forEach((b) => b.classList.toggle("ativa", b === botao));
+    carregarHistorico();
+  })
+);
+
+setInterval(atualizarCasa, 2000);
+setInterval(carregarHistorico, 30000);
+atualizarCasa();
+carregarHistorico();
+
+const campoNome = $("nome");
+try { campoNome.value = localStorage.getItem("nome") || ""; } catch (e) {}
+if (!campoNome.value) campoNome.value = /iPhone|iPad/.test(navigator.userAgent) ? "iPhone" : /Android/.test(navigator.userAgent) ? "Android" : "Navegador";
+campoNome.addEventListener("input", () => {
+  try { localStorage.setItem("nome", campoNome.value); } catch (e) {}
+});
+
+ouvir();
+</script>
+</body>
+</html>
